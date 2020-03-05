@@ -1,0 +1,148 @@
+
+---
+title: "Assignment 3"
+author: "Simona Bisiani"
+date: '2020-02-19'
+output:
+  word_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r}
+# Load packages:
+library(network)		# network data storage
+library(sna)			# network analysis routines
+library(latticeExtra)	# for nicer goodness of fit plots
+library(ergm)			# fitting & evaluating ERGMs
+library(igraph)
+library(statnet)
+library(tidyverse)
+library(stargazer)
+```
+
+```{r}
+rm(list = ls())
+
+# Load data:
+load("SNA2020-11.Rdata")
+
+#checking for missing-data and structurally absent individuals
+fri4 <- fri[[4]]
+table(fri4)
+present4 <- rowSums(fri4) != (nrow(fri4) * 10)
+fri4 <- fri4[present4,present4]
+
+#I transform my matrix into a igraph object
+G4 <- as.undirected(graph.adjacency(fri4, weighted = T))
+
+#removing absent people 
+fem4 <- fem[present4]
+fem4df <- as.data.frame(fem4)
+fem4m <- as.matrix(fem4df)
+
+fri4_network <- network(fri4,directed = TRUE, vertex.attr = c(fem4))
+fri4_network %v% "sex" <- na.omit(fem4)
+fri4_network %v% "sex" <- fem4m[,1]
+
+#plot to assess segregation status by gender
+plot(fri4_network, vertex.col = fem4, vertex.cex = 3)
+
+```
+
+Friendship networks in school are typically highly gender segregated, highly clustered, and highly reciprocated. What is more, the corresponding network mechanisms of gender homophily, reciprocity , and transitivity are confounded. Please answer the following conceptual questions (independent of any particular data):
+
+# 1
+*Explain why the mechanism of gender homophily might create networks in which there is a high degree of reciprocity and transitivity, even if no explicit mechanisms of reciprocity and transitivity operate.*
+Gender homophily, the tendency to share ties with individuals of the same gender, is a well studied phenomenon in the social sciences and in network analysis. Whenever the mechanism of gender homophily is in place, we can expect to see a network that is highly segregated by gender. For example, the school class I have been provided for this assignment was entirely segregated by gender until later waves, and even in wave 4 (plotted above, nodes are coloured by gender), when the pupils were older and formed more inter-sex friendships, we still retain relatively high gender segregation. Gender homophily can decrease the number of people in the entire network you might be interested in forming a friendship with, leading probably, especially in small networks, to high transitivity and clustering. Finally, homophily can induce individuals to display solidarity with same attribute-sharing nodes, increasing the degree of reciprocity in the network. 
+
+# 2
+*Explain why the opposite is not generally true, i.e., why the mechanisms of reciprocity or transitivity do not generally create networks which are high in gender homophily. Can you think of specific conditions under which they do?*
+When actors in a network are incentivised to reciprocate ties and connect with friends of friends, we can expect to see a network that is highly interconnected, where nodes engage with each other regardless of attributes, for example gender or ethnicity. Those networks might display some dense clusters, however that does not imply that gender homophily would occur as a result. For instance, in workplaces and organizations, we can expect high transitivity and reciprocity as a result of collaboration within departments, however no gender homophily should be expected as a result of this. Ultimately, gender homophily is a phenomenon that can be anticipated in settings such as school classrooms, predominantly when pupils are younger and most likely to form intra-gender ties.
+Whilst generally reciprocity and triadic closure do not necessarily create gender homophily, there is the opportunity, statistically speaking, that this might occur by chance. Furthermore, if in the early stages of edge-formation in a newly-established network the tie-formation occurs between nodes sharing same atttributes, there is the chance that gender homophily could emerge as a result of the mechanisms of reciprocation and transitivity happening naturally within that particular network. In other words, it can happen that reciprocity and transitivity could amplify gender homophily, however this is most likely to happen as a result of chance rather than to theoretically justifiable considersations.
+
+# 3
+*Please pick a network of an observation moment where your network is not entirely segregated (i.e., there should be some cross-gender ties to avoid degeneracy). In your R code, please drop the “structurally absent” actors, and fit two exponential random graph models to the data: − One model that simultaneously assesses overall tie creation tendencies, reciprocation tendencies, gender homophily tendencies and transitivity tendencies. Hint: use the effect nodematch to assess gender homophily. − Another model where reciprocity and transitivity are dropped (but only the term edges and gender homophily are retained.*
+
+
+```{r}
+
+# First Bernoulli random graph model / ER model:
+model1 <- fri4_network~
+	edges+						# overall tendency to create ties
+	mutual+						# reciprocation
+	twopath+         # precondition for transitive closure
+  gwesp(0.5,fixed=TRUE)+       	# transitive closure
+  nodematch("sex")   #gender homophily
+
+summary(model1)
+results1 <- ergm(model1)
+summary(results1)
+
+# Second Bernoulli random graph model / ER model:
+model2 <- fri4_network~
+	edges+	  # overall tendency to create ties
+  nodematch("sex")     #gender homophily
+
+summary(model2)
+results2 <- ergm(model2)
+summary(results2)
+
+```
+
+# 4
+*Report the results in a table and interpret them in a brief text. What can a comparison of the coefficients from both analyses tell us?*
+In Table 1, we report results from generating two models based on our network as captured during the fourth time wave. The first model includes information on density, reciprocity, transitivity and gender homophily. The second model simply includes density and gender homophily. We can see from our model output that gender homophily is significantly more present in our observed data than in two random equivalent graphs. Both our models tell us that our observed data has significantly less ties than a random equivalent one, although this is usually the case. Additionally, in model 1 my network seems to have a statistically higher reciprocity than in a random equivalent network. Transitivity, also included in model one, is significanlty higher in my network than in a random equivalent one. Ultimately, our models indicate that the network in wave four are characterised by high reciprocity, transitivity and gender homophily. In relation to comparing coefficients from the two analyses, we cannot really say much about the coefficients, but we can compare the AIC and BIC reported in the model output, indicating model goodness of fit. A higher AIC and BIC indicate worse goodness of fit, therefore we can conclude that the first model fits our data better. 
+
+```{r, echo=FALSE, results='asis'}
+stargazer(results1, results2, digits = 2, header = FALSE,
+          title = "Comparison with random models",
+          notes = "Table 1: Data from a Dutch school survey")
+```
+
+# 5
+*Please simulate 100 networks from each model. Evaluate the simulated data in terms of desities, the reciprocity and transitivity indices. Compare them to each other graphically and to the observed data.*
+
+```{r}
+
+# Simulating 100 networks from each model
+sims1 <- simulate(results1,nsim=100)
+sims2 <- simulate(results2,nsim=100)
+
+# Make histogram of network density of 100 simulated data sets:
+hist(gden(sims1))
+lines(rep(gden(fri4_network),2),c(0,30),col="red",lwd=5)
+
+hist(gden(sims2))
+lines(rep(gden(fri4_network),2),c(0,30),col="red",lwd=5)
+
+# Make histogram of network transitivity of 100 simulated data sets:
+simstr1 <- as.edgelist.sna(sims1)
+simstr2 <- as.edgelist.sna(sims2)
+
+hist(gtrans(simstr1))
+lines(rep(gtrans(fri4_network),2),c(0,30),col="red",lwd=5)
+
+hist(gtrans(simstr2), xlim = c(0.1, 0.65))
+lines(rep(gtrans(fri4_network),2),c(0,30),col="red",lwd=5)
+
+# Make histogram of network reciprocity of 100 simulated data sets:
+hist(grecip(sims1, measure = "edgewise"))
+lines(rep(grecip(fri4_network, measure = "edgewise"),2),c(0,30),col="red",lwd=5)
+
+hist(grecip(sims2, measure = "edgewise"), xlim = c(0,0.8))
+lines(rep(grecip(fri4_network, measure = "edgewise"),2),c(0,30),col="red",lwd=5)
+
+```
+
+# 6
+*Try to substantiate your reasoning in Exercises 1) and 2) above based on these results.*
+Above, we have generated 100 network simulations per each model we have created previously. We have plotted the distribution of our simulated networks´ density, reciprocity and transitivity. The red line in each histogram refers to our original network´s statistics in relation to the aforementioned connectivity measures. As we can see, the first model seems consistently more precise in generating networks whose mean value reflect more accurately our network´s estimates. That is not particularly surprising, since in model one we included the estimates for reciprocity and transitivity. When we do not include such information in our model, our generated random networks´ reciprocity, density and transitivity measures resemble a normal distribution, whose mean is not at all as close to the true value of our network statistics, but rather much lower. Given our first model indicated our network has rather high reciprocity and transitivity, the fact that the average simulated network has lower values can be expected. Because our model two includes gender homophily and the histogram´s red lines, related to the network transitivity and reciprocity show that the network has higher reciprocity and transitivity than by chance, we can infer that whenever the mechanism of gender homophily is in place, it positively affects reciprocity and transitivity. 
+
+# 7
+*Please indicate whom you collaborated with when answering the above questions, and whose input you consider particularly important.*
+In this assignment, I have shared theoretical considerations with Jan Sodoge, Felix Lennert and Gustav Ringqvist. Gustav Ringqvist has also helpfully hinted me to xlim for the hist() to be able to visualise my network descriptive statistics on my histograms. Pablo Bello has been really helpful in providing theoretical insights on how to interpret model outputs.
+

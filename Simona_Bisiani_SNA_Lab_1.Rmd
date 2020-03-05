@@ -1,0 +1,309 @@
+---
+title: "Lab 1"
+author: "Simona Bisiani"
+date: "22/01/2020"
+output: pdf_document
+---
+## 1
+Write an R-script that reads your RData-file (use R-command load() for this) and that calculates the ingredients for the other exercises below. Make sure that before or while doing any calculations or plots, you remove structurally absent actors, and you handle non-response meaningfully (often by adding the option na.rm=TRUE). 
+```{r, echo=FALSE, include=FALSE}
+library(statnet)
+library(stargazer)
+library(igraph)
+```
+
+```{r, include=FALSE, echo=FALSE}
+load("SNA2020-11.RData")
+
+#checking for missing-data and structurally absent individuals
+fri1 <- fri[[1]]
+table(fri1)
+
+fri2 <- fri[[2]]
+table(fri2)
+
+fri3 <- fri[[3]]
+table(fri3)
+
+fri4 <- fri[[4]]
+table(fri4)
+
+#removing structurally absent individuals and NAs
+#remove NA from time point 2
+fri2 <- na.omit(fri2)
+
+#remove structurally absent people from all four time points (because after 
+#removing the NAs from time point 2 my matrix is not symmetric I had to include
+#an extra line to remove all columns as well as rows with absent individuals)
+present1 <- rowSums(fri1) != (nrow(fri1) * 10)
+present2 <- rowSums(fri2) != (ncol(fri2) * 10) 
+present2_1 <- colSums(fri2) != (nrow(fri2) * 10)
+present3 <- rowSums(fri3) != (nrow(fri3) * 10)
+present4 <- rowSums(fri4) != (nrow(fri4) * 10)
+
+fri1 <- fri1[present1,present1]
+fri2 <- fri2[present2,present2_1] #still have to remove 3, 10, 12 from the col
+fri2 <- fri2[,-c(3,9,10)] 
+fri3 <- fri3[present3,present3]
+fri4 <- fri4[present4,present4]
+
+#removing absent people and NA people from my gender list + calculating female
+#percentages in each group
+fem1 <- fem[present1]
+fem1 <- na.omit(fem1)
+fem1_percentage <- sum(fem1)/length(fem1)*100
+
+fem2 <- fem[present2_1]
+fem2 <- na.omit(fem2)
+fem2_percentage <- sum(fem2)/length(fem2)*100
+
+fem3 <- fem[present3]
+fem3 <- na.omit(fem3)
+fem3_percentage <- sum(fem3)/length(fem3)*100
+
+fem4 <- fem[present4]
+fem4 <- na.omit(fem4)
+fem4_percentage <- sum(fem4)/length(fem4)*100
+
+#I transform my matrix into a igraph object
+G1 <- as.undirected(graph.adjacency(fri1, weighted = T))
+G2 <- as.undirected(graph.adjacency(fri2, weighted = T))
+G3 <- as.undirected(graph.adjacency(fri3, weighted = T))
+G4 <- as.undirected(graph.adjacency(fri4, weighted = T))
+
+```
+
+## 2
+Make a table that contains descriptive network statistics over time for your data set; please include: average degree, standard deviation of outdegrees and of indegrees, reciprocity index, transitivity index, and percentage of non-respondents at all four time points.  
+```{r, echo=FALSE, include=FALSE}
+#average degree statistics
+average_degree_1 <- mean(degree(G1))
+average_degree_2 <- mean(degree(G2))
+average_degree_3 <- mean(degree(G3))
+average_degree_4 <- mean(degree(G4))
+
+#sd of outdegrees and indegrees
+sd_outdegree_1 <- sd(degree(G1, mode = "out"))
+sd_outdegree_2 <- sd(degree(G2, mode = "out"))
+sd_outdegree_3 <- sd(degree(G3, mode = "out"))
+sd_outdegree_4 <- sd(degree(G4, mode = "out"))
+
+sd_indegree_1 <- sd(degree(G1, mode = "in"))
+sd_indegree_2 <- sd(degree(G2, mode = "in"))
+sd_indegree_3 <- sd(degree(G3, mode = "in"))
+sd_indegree_4 <- sd(degree(G4, mode = "in"))
+
+#reciprocity index
+recip_1 <- grecip(fri1, measure = "edgewise")
+recip_2 <- grecip(fri2, measure = "edgewise")
+recip_3 <- grecip(fri3, measure = "edgewise")
+recip_4 <- grecip(fri4, measure = "edgewise")
+
+#transitivity index
+trans_1 <- gtrans(fri1, measure = "weak")
+trans_2 <- gtrans(fri2, measure = "weak")
+trans_3 <- gtrans(fri3, measure = "weak")
+trans_4 <- gtrans(fri4, measure = "weak")
+
+#percentage of non-respondents
+NA_1 <- 0
+NA_2 <- (3/19)*100
+NA_3 <- 0
+NA_4 <- 0
+
+#I put all statistics in a vector for each time point
+V <- c(average_degree_1, sd_outdegree_1, sd_indegree_1, recip_1, trans_1, NA_1)
+W <- c(average_degree_2, sd_outdegree_2, sd_indegree_2, recip_2, trans_2, NA_2)
+X <- c(average_degree_3, sd_outdegree_3, sd_indegree_3, recip_3, trans_3, NA_3)
+Y <- c(average_degree_4, sd_outdegree_4, sd_indegree_4, recip_4, trans_4, NA_4)
+
+summary_statistics_1 <- as.data.frame(cbind(V, W, X, Y),  row.names = c("average degree", "sd outdegree", "sd indegree", "reciprocity", "transitivity", "NA %"))
+```
+
+```{r, echo=FALSE, results='asis'}
+summary_table_1 <- stargazer(summary_statistics_1, digits = 2, header = FALSE, summary = FALSE, 
+          title = "Descriptive Network Statistics Overtime",
+          notes = "first-year students in Dutch secondary schools in 2003-04")
+```
+
+
+\pagebreak
+
+
+## 3
+Make a table that contains descriptive information for individual level variables. Please include percentage of females and the means and standard deviations of the attitude (xyz.att) and behaviour (xyz.beh) variables related to alcohol and tobacco consumption, school engagement and sportivity, as they develop over the four time points.  
+```{r, echo=FALSE, include=FALSE}
+#tobacco
+tob.att_df <- as.data.frame(tob.att)
+tob.beh_df <- as.data.frame(tob.beh)
+
+tob_att_1_mean <- mean(tob.att_df$V, na.rm = TRUE)
+tob_beh_1_mean <- mean(tob.beh_df$V, na.rm = TRUE)
+tob_att_1_sd <- sd(tob.att_df$V, na.rm = TRUE)
+tob_beh_1_sd <- sd(tob.beh_df$V, na.rm = TRUE)
+
+tob_att_2_mean <- mean(tob.att_df$W, na.rm = TRUE)
+tob_beh_2_mean <- mean(tob.beh_df$W, na.rm = TRUE)
+tob_att_2_sd <- sd(tob.att_df$W, na.rm = TRUE)
+tob_beh_2_sd <- sd(tob.beh_df$W, na.rm = TRUE)
+
+tob_att_3_mean <- mean(tob.att_df$X, na.rm = TRUE)
+tob_beh_3_mean <- mean(tob.beh_df$X, na.rm = TRUE)
+tob_att_3_sd <- sd(tob.att_df$X, na.rm = TRUE)
+tob_beh_3_sd <- sd(tob.beh_df$X, na.rm = TRUE)
+
+tob_att_4_mean <- mean(tob.att_df$Y, na.rm = TRUE)
+tob_beh_4_mean <- mean(tob.beh_df$Y, na.rm = TRUE)
+tob_att_4_sd <- sd(tob.att_df$Y, na.rm = TRUE)
+tob_beh_4_sd <- sd(tob.beh_df$Y, na.rm = TRUE)
+
+#sport
+spo.att_df <- as.data.frame(spo.att)
+spo.beh_df <- as.data.frame(spo.beh)
+  
+spo_att_1_mean <- mean(spo.att_df$V, na.rm = TRUE)
+spo_beh_1_mean <- mean(spo.beh_df$V, na.rm = TRUE)
+spo_att_1_sd <- sd(spo.att_df$V, na.rm = TRUE)
+spo_beh_1_sd <- sd(spo.beh_df$V, na.rm = TRUE)
+
+spo_att_2_mean <- mean(spo.att_df$W, na.rm = TRUE)
+spo_beh_2_mean <- mean(spo.beh_df$W, na.rm = TRUE)
+spo_att_2_sd <- sd(spo.att_df$W, na.rm = TRUE)
+spo_beh_2_sd <- sd(spo.beh_df$W, na.rm = TRUE)
+
+spo_att_3_mean <- mean(spo.att_df$X, na.rm = TRUE)
+spo_beh_3_mean <- mean(spo.beh_df$X, na.rm = TRUE)
+spo_att_3_sd <- sd(spo.att_df$X, na.rm = TRUE)
+spo_beh_3_sd <- sd(spo.beh_df$X, na.rm = TRUE)
+
+spo_att_4_mean <- mean(spo.att_df$Y, na.rm = TRUE)
+spo_beh_4_mean <- mean(spo.beh_df$Y, na.rm = TRUE)
+spo_att_4_sd <- sd(spo.att_df$Y, na.rm = TRUE)
+spo_beh_4_sd <- sd(spo.beh_df$Y, na.rm = TRUE)
+
+#school engagement
+sch.att_df <- as.data.frame(sch.att)
+sch.beh_df <- as.data.frame(sch.beh)
+  
+sch_att_1_mean <- mean(sch.att_df$V, na.rm = TRUE)
+sch_beh_1_mean <- mean(sch.beh_df$V, na.rm = TRUE)
+sch_att_1_sd <- sd(sch.att_df$V, na.rm = TRUE)
+sch_beh_1_sd <- sd(sch.beh_df$V, na.rm = TRUE)
+
+sch_att_2_mean <- mean(sch.att_df$W, na.rm = TRUE)
+sch_beh_2_mean <- mean(sch.beh_df$W, na.rm = TRUE)
+sch_att_2_sd <- sd(sch.att_df$W, na.rm = TRUE)
+sch_beh_2_sd <- sd(sch.beh_df$W, na.rm = TRUE)
+
+sch_att_3_mean <- mean(sch.att_df$X, na.rm = TRUE)
+sch_beh_3_mean <- mean(sch.beh_df$X, na.rm = TRUE)
+sch_att_3_sd <- sd(sch.att_df$X, na.rm = TRUE)
+sch_beh_3_sd <- sd(sch.beh_df$X, na.rm = TRUE)
+
+sch_att_4_mean <- mean(sch.att_df$Y, na.rm = TRUE)
+sch_beh_4_mean <- mean(sch.beh_df$Y, na.rm = TRUE)
+sch_att_4_sd <- sd(sch.att_df$Y, na.rm = TRUE)
+sch_beh_4_sd <- sd(sch.beh_df$Y, na.rm = TRUE)
+
+#alcohol 
+alc.att_df <- as.data.frame(alc.att)
+alc.beh_df <- as.data.frame(alc.beh)
+  
+alc_att_1_mean <- mean(alc.att_df$V, na.rm = TRUE)
+alc_beh_1_mean <- mean(alc.beh_df$V, na.rm = TRUE)
+alc_att_1_sd <- sd(alc.att_df$V, na.rm = TRUE)
+alc_beh_1_sd <- sd(alc.beh_df$V, na.rm = TRUE)
+
+alc_att_2_mean <- mean(alc.att_df$W, na.rm = TRUE)
+alc_beh_2_mean <- mean(alc.beh_df$W, na.rm = TRUE)
+alc_att_2_sd <- sd(alc.att_df$W, na.rm = TRUE)
+alc_beh_2_sd <- sd(alc.beh_df$W, na.rm = TRUE)
+
+alc_att_3_mean <- mean(alc.att_df$X, na.rm = TRUE)
+alc_beh_3_mean <- mean(alc.beh_df$X, na.rm = TRUE)
+alc_att_3_sd <- sd(alc.att_df$X, na.rm = TRUE)
+alc_beh_3_sd <- sd(alc.beh_df$X, na.rm = TRUE)
+
+alc_att_4_mean <- mean(alc.att_df$Y, na.rm = TRUE)
+alc_beh_4_mean <- mean(alc.beh_df$Y, na.rm = TRUE)
+alc_att_4_sd <- sd(alc.att_df$Y, na.rm = TRUE)
+alc_beh_4_sd <- sd(alc.beh_df$Y, na.rm = TRUE)
+
+#storage vectors for all variables
+Time1 <- c(fem1_percentage, tob_att_1_mean, tob_att_1_sd, alc_att_1_mean, alc_att_1_sd, sch_att_1_mean, sch_att_1_sd, spo_att_1_mean, spo_att_1_sd, tob_beh_1_mean, tob_beh_1_sd, alc_beh_1_mean, alc_beh_1_sd, sch_beh_1_mean, sch_beh_1_sd, spo_beh_1_mean, spo_beh_1_sd)
+Time2 <- c(fem2_percentage, tob_att_2_mean, tob_att_2_sd, alc_att_2_mean, alc_att_2_sd, sch_att_2_mean, sch_att_2_sd, spo_att_2_mean, spo_att_2_sd, tob_beh_2_mean, tob_beh_2_sd, alc_beh_2_mean, alc_beh_2_sd, sch_beh_2_mean, sch_beh_2_sd, spo_beh_2_mean, spo_beh_2_sd)
+Time3 <- c(fem3_percentage, tob_att_3_mean, tob_att_3_sd, alc_att_3_mean, alc_att_3_sd, sch_att_3_mean, sch_att_3_sd, spo_att_3_mean, spo_att_3_sd, tob_beh_3_mean, tob_beh_3_sd, alc_beh_3_mean, alc_beh_3_sd, sch_beh_3_mean, sch_beh_3_sd, spo_beh_3_mean, spo_beh_3_sd)
+Time4 <- c(fem4_percentage, tob_att_4_mean, tob_att_4_sd, alc_att_4_mean, alc_att_4_sd, sch_att_4_mean, sch_att_4_sd, spo_att_4_mean, spo_att_4_sd, tob_beh_4_mean, tob_beh_4_sd, alc_beh_4_mean, alc_beh_4_sd, sch_beh_4_mean, sch_beh_4_sd, spo_beh_4_mean, spo_beh_4_sd)
+
+#summary data frame
+summary_statistics_2 <- as.data.frame(cbind(Time1, Time2, Time3, Time4),  row.names = c("female percentage", "tobacco attitude mean", "tobacco attitude sd", "alcohol attitude mean", "alcohol attitude sd", "school engagement attitude mean", "school engagement attitude sd", "sportivity attitude mean", "sportivity attitude sd", "tobacco behaviour mean", "tobacco behaviour sd", "alcohol behaviour mean", "alcohol behaviour sd", "school engagement behaviour mean", "school engagement behaviour sd", "sportivity behaviour mean", "sportivity behaviour sd"))
+
+```
+
+```{r, echo=FALSE, results='asis'}
+summary_table_2 <- stargazer(summary_statistics_2, digits = 2, header = FALSE, summary = FALSE, 
+          title = "Descriptive Individual Level Variables",
+          notes = "first-year students in Dutch secondary schools in 2003-04")
+```
+
+\pagebreak
+
+## 4
+Make a network diagram in which you show one(!) of the four friendship networks with nodes coloured by sex and size indicating some other variable of interest. 
+*The network below is coloured by sex and sized by sport behaviour.*
+```{r, echo=FALSE, fig.align='left'}
+fri1_network <- network(fri1,directed = TRUE, vertex.attr = c(fem1, spo.beh_df$V))
+plot(fri1_network, vertex.col = fem1, vertex.cex = spo.beh_df$V)
+```
+
+## 5
+Please formulate a hypothesis about the effect of one of the attitude (xyz.att) or behaviour (xyz.beh) variables on indegree centrality in the friendship network. Provide some reasoning to convince a reader why it makes sense to expect the effect you hypothesise. 
+*H1: students' level of sporty behaviour could have an effect on individual indegree centrality. Sport, as an inherently social activity that fosters friendship and trust, could increase individuals' friendship network, particularly how many individuals identify that peer as a friend. There are a lot of positive aspects relatable to being a sporty individual. For example, people practising sport appear motivated, active, dedicated, and passionated. All the mentioned factors, in addition to being talented in a physically and strategically requiring environment, turn the sporty individual into a "role model" to his/her peers. Sporty people can therefore be said to be socially "attractive", to possess skills that are universally desirable. Complemented with sporty-related attitudes of team-working, team-belonging and mutual respect, people who have high levels of self-reported sporty behaviour can be therefore expected to have higher numbers of indegree centrality in the network.*
+
+
+## 6 
+Calculate indegrees and run regression analyses of indegree as outcome variable and the predictor variables according to Exercise 5 to test the hypothesis formulated above. Report the results of the four separate linear regressions (one per time point) in one comprehensive regression-output table. 
+```{r, echo=FALSE, include=FALSE}
+#indegree calculation
+indegree1 <- degree(G1, mode = "in")
+indegree2 <- degree(G2, mode = "in")
+indegree3 <- degree(G3, mode = "in")
+indegree4 <- degree(G4, mode = "in")
+
+length(indegree1)
+length(spo.beh_df$V)
+
+spo.beh_df1_cleared <- na.omit(spo.beh_df$V)
+fri1_2_lm_df <- as.data.frame(cbind(indegree1, spo.beh_df1_cleared))
+lm_1_2 <- lm(indegree1 ~ spo.beh_df1_cleared, data = fri1_2_lm_df)
+summary(lm_1_2)
+
+spo.beh_df2_cleared <- na.omit(spo.beh_df$W)
+fri2_2_lm_df <- as.data.frame(cbind(indegree2, spo.beh_df2_cleared))
+lm_2_2 <- lm(indegree2 ~ spo.beh_df2_cleared, data = fri2_2_lm_df)
+summary(lm_2_2)
+
+spo.beh_df3_cleared <- na.omit(spo.beh_df$X)
+fri3_2_lm_df <- as.data.frame(cbind(indegree3, spo.beh_df3_cleared))
+lm_3_2 <- lm(indegree3 ~ spo.beh_df3_cleared, data = fri3_2_lm_df)
+summary(lm_3_2)
+
+spo.beh_df4_cleared <- na.omit(spo.beh_df$Y)
+fri4_2_lm_df <- as.data.frame(cbind(indegree4, spo.beh_df4_cleared))
+lm_4_2 <- lm(indegree4 ~ spo.beh_df4_cleared, data = fri4_2_lm_df)
+summary(lm_4_2)
+
+model_table_2 <- cbind(c(lm_1_2, lm_2_2, lm_3_2, lm_4_2))
+
+```
+
+```{r, echo=FALSE, results='asis'}
+stargazer(lm_1_2, lm_2_2, lm_3_2, lm_4_2, digits = 2, header = FALSE,
+          title = "Regression models on the relationship between sport behaviour and indegree centrality",
+          notes = "Data from a Dutch school survey")
+```
+
+## 7
+Interpret the results in the light of the hypothesis you formulated.
+
+*Our regression output shows the impact of sport behaviour on indegree centrality. Four regressions have been run, one per each time wave, using time-wave specific data on both behaviour and indegree centrality. The model shows that in the first wave, a one unit increase in sport behaviour decreases your indegree centrality by 0.14. The effect is larger in the second wave, where a one unit increase in sport behaviour decreases the indegree centrality by 0.46. However, the trend is reversed in the third and fourth wave, where the coefficients returned are 0.11 and 0.28, indicating that, later on in time, individuals who are more sporty also have a higher indegree centrality. However, our regression coefficients are all statistically insignificant, therefore we cannot conclude that sport behaviour has a significant impact on indegree centrality.* 
